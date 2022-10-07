@@ -148,18 +148,18 @@ fn main() {
             )
             .unwrap();
             sign_and_send(&pool, &mut req_rev_entry, Some(&nym_priv_key)).unwrap();
-            info!("revoked indices [1,5,6,7]");
+            info!("revoked indices [1, 5, 6, 7]");
             // Create revocation entry
             let (mut req_rev_entry, _rev_reg) = generate_tx_update_rev_reg_entry(
                 &builder,
                 &did,
                 &rev_reg,
                 &rev_reg_def,
-                vec![9].into_iter(),
+                vec![8].into_iter(),
             )
             .unwrap();
             sign_and_send(&pool, &mut req_rev_entry, Some(&nym_priv_key)).unwrap();
-            info!("revoked index [9]");
+            info!("revoked index [8]");
 
             // Get delta
             let mut req_delta = generate_tx_get_delta(&builder, &rev_reg_def).unwrap();
