@@ -1,19 +1,28 @@
-mod nym;
-mod schema;
 mod cred_def;
+mod nym;
+mod rev_reg;
+mod schema;
 
+use crate::cred_def::generate_tx_cred_def;
+use crate::nym::{generate_tx_nym, long_did};
+use crate::rev_reg::{
+    generate_tx_get_delta, generate_tx_init_rev_reg, generate_tx_rev_reg,
+    generate_tx_update_rev_reg_entry,
+};
+use crate::schema::generate_tx_schema;
 use clap::Parser;
 use futures_executor::block_on;
+use indy_data_types::anoncreds::schema::Schema::SchemaV1;
 use indy_vdr::common::error::VdrResult;
 use indy_vdr::pool::helpers::perform_ledger_request;
 use indy_vdr::pool::helpers::perform_refresh;
-use indy_vdr::pool::{Pool, PoolBuilder, PoolTransactions, PreparedRequest, RequestResult, SharedPool};
+use indy_vdr::pool::{
+    Pool, PoolBuilder, PoolTransactions, PreparedRequest, RequestResult, SharedPool,
+};
 use indy_vdr::utils::did;
 use indy_vdr::utils::keys::PrivateKey;
-use log::{debug, error, info};
-use crate::cred_def::generate_tx_cred_def;
-use crate::nym::{generate_tx_nym, long_did};
-use crate::schema::generate_tx_schema;
+use log::{error, info};
+use serde_json::Value;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -68,22 +77,116 @@ fn main() {
         pool
     };
 
-    let (did, private_key, _) =
-        did::generate_did(Option::from(args.seed.as_bytes())).unwrap();
+    let (did, private_key, _) = did::generate_did(Option::from(args.seed.as_bytes())).unwrap();
     let ldid = &long_did(&did);
 
     match args.action.to_ascii_lowercase().as_str() {
         "rev" => {
             info!("Creating rev_reg with problematic entries");
 
-            let (mut tx_nym, _did, nym_priv_key, _ver_key) = generate_tx_nym(&builder, ldid).unwrap();
-            sign_and_send(&pool, &mut tx_nym, &private_key).unwrap();
+            // Generate and send nym
+            let (mut req_nym, did, nym_priv_key, _ver_key) =
+                generate_tx_nym(&builder, ldid).unwrap();
+            sign_and_send(&pool, &mut req_nym, Some(&private_key)).unwrap();
+            info!("Nym {} created", did);
 
-            let (mut tx_schema, _schema) = generate_tx_schema(&builder, ldid).unwrap();
-            sign_and_send(&pool, &mut tx_schema, &nym_priv_key).unwrap();
+            // Generate and send schema
+            let (mut req_schema, schema) = generate_tx_schema(&builder, &did).unwrap();
+            let resp = sign_and_send(&pool, &mut req_schema, Some(&nym_priv_key)).unwrap();
+            info!("Schema {} created", schema.id());
 
-            let mut tx_cred_def = generate_tx_cred_def(&builder, ldid).unwrap();
-            sign_and_send(&pool, &mut tx_cred_def, &nym_priv_key).unwrap();
+            // Add seq_no to schema
+            let res: Value = serde_json::from_str(&resp).unwrap();
+            // TODO: create type to parse to
+            let seq_no = res
+                .as_object()
+                .unwrap()
+                .get("result")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .get("txnMetadata")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .get("seqNo")
+                .unwrap()
+                .as_u64()
+                .unwrap();
+
+            let schema = match schema {
+                SchemaV1(s) => {
+                    let mut schema = s.clone();
+                    schema.seq_no = Some(seq_no as u32);
+                    SchemaV1(schema)
+                }
+            };
+
+            // Generate and send cred_def
+            let (mut req_cred_def, cred_def, _cred_priv) =
+                generate_tx_cred_def(&builder, &did, &schema, "testcred").unwrap();
+            sign_and_send(&pool, &mut req_cred_def, Some(&nym_priv_key)).unwrap();
+            info!("Cred_Def {} created", cred_def.id());
+
+            // Generate and send revocation registry + definition
+            let (mut req_rev_reg_def, rev_reg_def, _rev_reg_def_priv, rev_reg, _rev_reg_delta) =
+                generate_tx_rev_reg(&builder, &did, &cred_def, "1.0").unwrap();
+            sign_and_send(&pool, &mut req_rev_reg_def, Some(&nym_priv_key)).unwrap();
+            info!("rev_reg_def {} created", rev_reg_def.id());
+            let mut req_rev_reg =
+                generate_tx_init_rev_reg(&builder, &did, &rev_reg_def, &rev_reg).unwrap();
+            sign_and_send(&pool, &mut req_rev_reg, Some(&nym_priv_key)).unwrap();
+            info!("rev_reg created");
+
+            // Create revocation entry
+            let (mut req_rev_entry, rev_reg) = generate_tx_update_rev_reg_entry(
+                &builder,
+                &did,
+                &rev_reg,
+                &rev_reg_def,
+                vec![1, 5, 6, 7].into_iter(),
+            )
+            .unwrap();
+            sign_and_send(&pool, &mut req_rev_entry, Some(&nym_priv_key)).unwrap();
+            info!("revoked indices [1,5,6,7]");
+            // Create revocation entry
+            let (mut req_rev_entry, _rev_reg) = generate_tx_update_rev_reg_entry(
+                &builder,
+                &did,
+                &rev_reg,
+                &rev_reg_def,
+                vec![9].into_iter(),
+            )
+            .unwrap();
+            sign_and_send(&pool, &mut req_rev_entry, Some(&nym_priv_key)).unwrap();
+            info!("revoked index [9]");
+
+            // Get delta
+            let mut req_delta = generate_tx_get_delta(&builder, &rev_reg_def).unwrap();
+            let resp = sign_and_send(&pool, &mut req_delta, None).unwrap();
+            let res: Value = serde_json::from_str(&resp).unwrap();
+            // parse delta
+            // TODO: create type to parse to
+            let revoked = res
+                .as_object()
+                .unwrap()
+                .get("result")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .get("data")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .get("value")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .get("revoked")
+                .unwrap()
+                .as_array()
+                .unwrap();
+            info!("Got delta: {:?}", revoked);
         }
         "flag" => {
             info!("Writing REV_STRATEGY_USE_COMPAT_ORDERING=False to ledger");
@@ -91,13 +194,9 @@ fn main() {
             let value = "False".to_string();
 
             let mut req = builder
-                .build_flag_request(
-                    &ldid,
-                    name.to_string(),
-                    value,
-                )
+                .build_flag_request(&ldid, name.to_string(), value)
                 .unwrap();
-            sign_and_send(&pool, &mut req, &private_key).unwrap();
+            sign_and_send(&pool, &mut req, Some(&private_key)).unwrap();
         }
         "get_flag" => {
             info!("Getting value for REV_STRATEGY_USE_COMPAT_ORDERING from ledger");
@@ -134,22 +233,25 @@ fn main() {
     }
 }
 
-fn sign_and_send(pool: &SharedPool, req: &mut PreparedRequest, private_key: &PrivateKey) -> VdrResult<()> {
+// Helper function to sign and send transactions
+fn sign_and_send(
+    pool: &SharedPool,
+    req: &mut PreparedRequest,
+    private_key: Option<&PrivateKey>,
+) -> VdrResult<String> {
     // Create Signature
-    req.set_signature(
-        private_key
-            .sign(req.get_signature_input().unwrap().as_bytes())
-            .unwrap()
-            .as_slice(),
-    )
-    .unwrap();
+    if private_key.is_some() {
+        req.set_signature(
+            private_key
+                .unwrap()
+                .sign(req.get_signature_input()?.as_bytes())?
+                .as_slice(),
+        )?;
+    }
     // Send transaction to ledger
-    let (res, _timing) = block_on(perform_ledger_request(pool, req))?;
+    let (res, _timing) = block_on(perform_ledger_request(pool, &req))?;
     match res {
-        RequestResult::Reply(data) => {
-            debug!("Sent data to ledger: {}", data);
-            Ok(())
-        }
+        RequestResult::Reply(data) => Ok(data),
         RequestResult::Failed(error) => Err(error),
     }
 }

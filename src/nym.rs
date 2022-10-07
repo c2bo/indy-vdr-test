@@ -8,7 +8,7 @@ use rand::{distributions::Alphanumeric, Rng};
 
 // Create a DidValue ( long form)
 pub fn long_did(did: &ShortDidValue) -> DidValue {
-    return did.qualify(Option::from("sov".to_owned()));
+    return did.qualify(Some("sov".to_string()));
 }
 
 // Generate random seed used to create public/private key
@@ -20,7 +20,6 @@ pub fn generate_seed() -> String {
         .collect()
 }
 
-// Create unsigned NYM Transaction
 pub fn generate_tx_nym(
     builder: &RequestBuilder,
     trustee_did: &DidValue,
