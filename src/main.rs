@@ -39,7 +39,7 @@ pub struct Args {
     #[clap(
         short = 'g',
         long = "genesis",
-        default_value = "./pool_transactions_genesis"
+        default_value = "./pool_transactions_genesis",
     )]
     genesis_file: String,
 
@@ -97,22 +97,7 @@ fn main() {
 
             // Add seq_no to schema
             let res: Value = serde_json::from_str(&resp).unwrap();
-            // TODO: create type to parse to
-            let seq_no = res
-                .as_object()
-                .unwrap()
-                .get("result")
-                .unwrap()
-                .as_object()
-                .unwrap()
-                .get("txnMetadata")
-                .unwrap()
-                .as_object()
-                .unwrap()
-                .get("seqNo")
-                .unwrap()
-                .as_u64()
-                .unwrap();
+            let seq_no = res["result"]["txnMetadata"]["seqNo"].as_u64().unwrap();
 
             let schema = match schema {
                 SchemaV1(s) => {
@@ -162,30 +147,11 @@ fn main() {
             info!("revoked index [8]");
 
             // Get delta
-            let mut req_delta = generate_tx_get_delta(&builder, &rev_reg_def).unwrap();
+            let mut req_delta = generate_tx_get_delta(&builder, rev_reg_def.id()).unwrap();
             let resp = sign_and_send(&pool, &mut req_delta, None).unwrap();
             let res: Value = serde_json::from_str(&resp).unwrap();
             // parse delta
-            // TODO: create type to parse to
-            let revoked = res
-                .as_object()
-                .unwrap()
-                .get("result")
-                .unwrap()
-                .as_object()
-                .unwrap()
-                .get("data")
-                .unwrap()
-                .as_object()
-                .unwrap()
-                .get("value")
-                .unwrap()
-                .as_object()
-                .unwrap()
-                .get("revoked")
-                .unwrap()
-                .as_array()
-                .unwrap();
+            let revoked = res["result"]["data"]["value"]["revoked"].as_array().unwrap();
             info!("Got delta: {:?}", revoked);
         }
         "flag" => {

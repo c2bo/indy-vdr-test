@@ -10,6 +10,7 @@ use indy_vdr::ledger::RequestBuilder;
 use indy_vdr::pool::PreparedRequest;
 use indy_vdr::utils::did::DidValue;
 use std::collections::BTreeSet;
+use indy_data_types::RevocationRegistryId;
 
 pub fn generate_tx_rev_reg(
     builder: &RequestBuilder,
@@ -95,11 +96,11 @@ pub fn generate_tx_update_rev_reg_entry(
 
 pub fn generate_tx_get_delta(
     builder: &RequestBuilder,
-    rev_reg_def: &RevocationRegistryDefinition,
+    rev_reg_def_id: &RevocationRegistryId,
 ) -> VdrResult<PreparedRequest> {
     let tx = builder.build_get_revoc_reg_delta_request(
         None,
-        rev_reg_def.id(),
+        rev_reg_def_id,
         None,
         chrono::offset::Utc::now().timestamp(),
     );
