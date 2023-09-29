@@ -1,4 +1,6 @@
 use indy_vdr::common::error::VdrResult;
+use indy_vdr::ledger::constants::LedgerRole::Endorser;
+use indy_vdr::ledger::constants::UpdateRole;
 use indy_vdr::ledger::RequestBuilder;
 use indy_vdr::pool::PreparedRequest;
 use indy_vdr::utils::did;
@@ -26,7 +28,7 @@ pub fn generate_tx_nym(
 ) -> VdrResult<(PreparedRequest, DidValue, PrivateKey, VerKey)> {
     // Create random Seed
     let seed: String = generate_seed();
-    let (did, private_key, ver_key) = did::generate_did(Option::from(seed.as_bytes()))?;
+    let (did, private_key, ver_key) = did::generate_did(Option::from(seed.as_bytes()), None)?;
     let qualified_did = long_did(&did);
     // Create nym request from seed
     let tx = builder.build_nym_request(
@@ -34,7 +36,7 @@ pub fn generate_tx_nym(
         &qualified_did,
         Some(ver_key.to_string()),
         None,
-        Some("101".to_owned()),
+        Some(UpdateRole::Set(Endorser)),
         None,
         None,
     )?;

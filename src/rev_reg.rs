@@ -1,5 +1,5 @@
 use indy_credx::issuer::{create_revocation_registry, update_revocation_registry};
-use indy_credx::tails::{TailsFileReader, TailsFileWriter};
+use indy_credx::tails::{TailsFileWriter};
 use indy_data_types::anoncreds::cred_def::CredentialDefinition;
 use indy_data_types::anoncreds::rev_reg::{RevocationRegistry, RevocationRegistryDelta};
 use indy_data_types::anoncreds::rev_reg_def::{
@@ -65,7 +65,9 @@ pub fn generate_tx_init_rev_reg(
 pub fn generate_tx_update_rev_reg_entry(
     builder: &RequestBuilder,
     did: &DidValue,
+    cred_def: &CredentialDefinition,
     rev_reg: &RevocationRegistry,
+    rev_reg_priv: &RevocationRegistryDefinitionPrivate,
     rev_reg_def: &RevocationRegistryDefinition,
     revoked: impl Iterator<Item = i64>,
 ) -> VdrResult<(PreparedRequest, RevocationRegistry)> {
@@ -78,9 +80,8 @@ pub fn generate_tx_update_rev_reg_entry(
         tree.insert(i as u32);
         tree
     });
-    let reader = TailsFileReader::new(path);
     let (rev_reg, rev_reg_delta) =
-        update_revocation_registry(rev_reg_def, rev_reg, BTreeSet::new(), revoked_set, &reader)
+        update_revocation_registry(cred_def, rev_reg_def, rev_reg_priv, rev_reg, BTreeSet::new(), revoked_set)
             .unwrap();
     let tx = builder.build_revoc_reg_entry_request(
         did,

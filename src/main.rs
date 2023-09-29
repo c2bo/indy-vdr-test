@@ -77,7 +77,7 @@ fn main() {
         pool
     };
 
-    let (did, private_key, _) = did::generate_did(Option::from(args.seed.as_bytes())).unwrap();
+    let (did, private_key, _) = did::generate_did(Option::from(args.seed.as_bytes()), None).unwrap();
     let ldid = &long_did(&did);
 
     match args.action.to_ascii_lowercase().as_str() {
@@ -114,7 +114,7 @@ fn main() {
             info!("Cred_Def {} created", cred_def.id());
 
             // Generate and send revocation registry + definition
-            let (mut req_rev_reg_def, rev_reg_def, _rev_reg_def_priv, rev_reg, _rev_reg_delta) =
+            let (mut req_rev_reg_def, rev_reg_def, rev_reg_priv, rev_reg, _rev_reg_delta) =
                 generate_tx_rev_reg(&builder, &did, &cred_def, "1.0").unwrap();
             sign_and_send(&pool, &mut req_rev_reg_def, Some(&nym_priv_key)).unwrap();
             info!("rev_reg_def {} created", rev_reg_def.id());
@@ -127,7 +127,9 @@ fn main() {
             let (mut req_rev_entry, rev_reg) = generate_tx_update_rev_reg_entry(
                 &builder,
                 &did,
+                &cred_def,
                 &rev_reg,
+                &rev_reg_priv,
                 &rev_reg_def,
                 vec![1, 5, 6, 7].into_iter(),
             )
@@ -138,7 +140,9 @@ fn main() {
             let (mut req_rev_entry, _rev_reg) = generate_tx_update_rev_reg_entry(
                 &builder,
                 &did,
+                &cred_def,
                 &rev_reg,
+                &rev_reg_priv,
                 &rev_reg_def,
                 vec![8].into_iter(),
             )

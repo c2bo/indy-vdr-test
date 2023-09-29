@@ -4,10 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-indy-vdr =  { git = "https://github.com/boschresearch/indy-vdr", branch = "feature/config-flag" }
-#indy-vdr = { path = "../indy-vdr/libindy_vdr" }
-indy-data-types = { version = "0.5" }
-indy-credx = { version = "0.3.1" }
+indy-vdr =  { version = "0.4" }
+indy-data-types = { version = "0.6.1" }
+indy-credx = { version = "1.0.3" }
 clap = { version = "3.1.3", features = ["derive"] }
 log = "0.4.0"
 env_logger = "0.9.0"
