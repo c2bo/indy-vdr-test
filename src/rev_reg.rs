@@ -71,11 +71,6 @@ pub fn generate_tx_update_rev_reg_entry(
     rev_reg_def: &RevocationRegistryDefinition,
     revoked: impl Iterator<Item = i64>,
 ) -> VdrResult<(PreparedRequest, RevocationRegistry)> {
-    let path = match rev_reg_def {
-        RevocationRegistryDefinition::RevocationRegistryDefinitionV1(def) => {
-            def.value.tails_location.as_str()
-        }
-    };
     let revoked_set = revoked.into_iter().fold(BTreeSet::new(), |mut tree, i| {
         tree.insert(i as u32);
         tree
