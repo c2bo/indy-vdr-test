@@ -1,16 +1,16 @@
 use indy_credx::issuer::{create_revocation_registry, update_revocation_registry};
-use indy_credx::tails::{TailsFileWriter};
+use indy_credx::tails::TailsFileWriter;
 use indy_data_types::anoncreds::cred_def::CredentialDefinition;
 use indy_data_types::anoncreds::rev_reg::{RevocationRegistry, RevocationRegistryDelta};
 use indy_data_types::anoncreds::rev_reg_def::{
-    IssuanceType, RegistryType, RevocationRegistryDefinition, RevocationRegistryDefinitionPrivate,
+    IssuanceType, RegistryType, RevocationRegistryDefinition, RevocationRegistryDefinitionPrivate, RevocationRegistryDefinitionV1,
 };
 use indy_vdr::common::error::VdrResult;
 use indy_vdr::ledger::RequestBuilder;
 use indy_vdr::pool::PreparedRequest;
 use indy_vdr::utils::did::DidValue;
 use std::collections::BTreeSet;
-use indy_data_types::RevocationRegistryId;
+use indy_data_types::{RevocationRegistryId, CredentialDefinitionId};
 
 pub fn generate_tx_rev_reg(
     builder: &RequestBuilder,
@@ -36,6 +36,14 @@ pub fn generate_tx_rev_reg(
         &mut writer,
     )
     .unwrap();
+    // fix for old node version
+    let mut raw_rev_reg_def: RevocationRegistryDefinitionV1 = match rev_reg_def {
+        RevocationRegistryDefinition::RevocationRegistryDefinitionV1(c) => {
+            c
+        }
+    };
+    raw_rev_reg_def.cred_def_id = CredentialDefinitionId(raw_rev_reg_def.cred_def_id.strip_prefix("creddef:sov:did:sov:").unwrap().to_string());
+    let rev_reg_def = RevocationRegistryDefinition::RevocationRegistryDefinitionV1(raw_rev_reg_def);
     let tx = builder.build_revoc_reg_def_request(did, rev_reg_def.clone());
 
     return match tx {

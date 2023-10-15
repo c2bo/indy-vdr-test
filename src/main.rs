@@ -121,7 +121,7 @@ fn main() {
             let mut req_rev_reg =
                 generate_tx_init_rev_reg(&builder, &did, &rev_reg_def, &rev_reg).unwrap();
             sign_and_send(&pool, &mut req_rev_reg, Some(&nym_priv_key)).unwrap();
-            info!("rev_reg created");
+            info!("rev_reg initialized");
 
             // Create revocation entry
             let (mut req_rev_entry, rev_reg) = generate_tx_update_rev_reg_entry(
